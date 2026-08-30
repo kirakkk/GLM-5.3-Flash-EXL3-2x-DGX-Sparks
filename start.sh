@@ -191,6 +191,12 @@ VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS="${VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS:-1800}"
 GLM53_BOOT_SHAPE_WARMUP="${GLM53_BOOT_SHAPE_WARMUP:-1}"
 GLM53_WARMUP_REQ_TIMEOUT="${GLM53_WARMUP_REQ_TIMEOUT:-240}"
 
+# OpenAI-compatible API bearer token. vLLM reads this native environment
+# variable when --api-key is absent, which keeps the token out of argv and the
+# non-default-arguments startup log. Empty keeps the upstream unauthenticated
+# behavior.
+VLLM_API_KEY="${VLLM_API_KEY:-}"
+
 CONTAINER_HEAD="${CONTAINER_HEAD:-glm53-exl3-head}"
 CONTAINER_WORKER="${CONTAINER_WORKER:-glm53-exl3-worker}"
 
@@ -921,6 +927,9 @@ launch_cluster() {
              LIMIT_MM CHAT_TEMPLATE ENFORCE_EAGER EXL3_FUSED_MOE MODEL_DIR EXTRA_ARGS; do
         serve_env+=" -e $v='${!v:-}'"
     done
+    # Pass auth through the native vLLM environment variable. Do not append it
+    # to EXTRA_ARGS: command-line values are echoed by vLLM during startup.
+    serve_env+=" -e VLLM_API_KEY='${VLLM_API_KEY:-}'"
 
     log "starting worker on ${WORKER_SSH} (NCCL if=${WORKER_CX7_IF} hca=${WORKER_CX7_IB}) ..."
     worker_ssh "docker run -d --name '$CONTAINER_WORKER' \
@@ -990,6 +999,7 @@ launch_cluster() {
         -e ENFORCE_EAGER="$ENFORCE_EAGER" \
         -e EXL3_FUSED_MOE="$EXL3_FUSED_MOE" \
         -e MODEL_DIR="$MODEL_DIR" \
+        -e VLLM_API_KEY="$VLLM_API_KEY" \
         -e EXTRA_ARGS="${EXTRA_ARGS:-}" \
         --entrypoint bash "$IMAGE" /start.sh >/dev/null
 
