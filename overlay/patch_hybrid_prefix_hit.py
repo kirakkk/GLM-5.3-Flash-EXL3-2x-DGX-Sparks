@@ -157,11 +157,12 @@ FINE_OLD = """            unsupported_partial_hit_managers = {
 FINE_NEW = """            unsupported_partial_hit_managers = {  # [glm53-hybrid-apc-fine]
                 type(manager).__name__
                 for manager, group in zip(
-                    self.single_type_managers, kv_cache_config.kv_cache_groups
+                    self.single_type_managers, kv_cache_config.kv_cache_groups,
+                    strict=True,
                 )
                 # A transient/non-shareable manager cannot constrain prefix-hit
                 # granularity because it never participates in the lookup.
-                if group.kv_cache_spec.participates_in_prefix_caching
+                if group.kv_cache_spec.participates_in_prefix_caching is not False
                 and not manager.supports_fine_grained_hash_lookup
                 and manager.block_size != hash_block_size
             }
@@ -173,6 +174,20 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     if n != 1:
         raise SystemExit(f"{P}: expected one {label} target, found {n}")
     return text.replace(old, new, 1)
+
+
+def verify_installed(text: str) -> None:
+    """A marker alone must not silently accept an incomplete or drifted patch."""
+    for label, snippet in (
+        ("helpers", HELPER.strip()),
+        ("eagle-fallback", EAGLE_NEW),
+        ("hybrid-min", MIN_NEW),
+        ("group-log", LOG_NEW),
+        ("fine-grained manager eligibility", FINE_NEW),
+    ):
+        if text.count(snippet) != 1:
+            raise SystemExit(f"{P}: installed {label} patch is missing or drifted")
+    compile(text, str(P), "exec")
 
 
 def main() -> int:
@@ -203,6 +218,9 @@ def main() -> int:
         )
         changes.append("64-token fine-grained hits")
 
+    # Validate the complete result before writing, including additive upgrades
+    # and repeated application to an image that already contains the overlay.
+    verify_installed(text)
     if not changes:
         print(f"{P.name}: {MARK} and {FINE_MARK} already present — skipping")
         return 0

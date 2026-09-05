@@ -78,7 +78,8 @@ def _run_preamble(env_file: str, caller: dict[str, str], probe: str) -> str:
                if k not in ("GLM53_INDEXER_WORKSPACE", "GLM53_SPINWAIT_MS")}
         env.update(caller)
         result = subprocess.run(
-            ["bash", str(script)], check=True, capture_output=True, text=True, env=env
+            _bash_command(script), check=True, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", env=env
         )
     return result.stdout.strip()
 
